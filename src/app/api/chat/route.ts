@@ -1,4 +1,9 @@
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import {
+  convertToModelMessages,
+  stepCountIs,
+  streamText,
+  type UIMessage,
+} from "ai";
 import { z } from "zod";
 import { createAiSdkModel, assertOpenAIConfigured } from "@/server/agent/model";
 import { buildSystemPrompt } from "@/server/agent/prompts";
@@ -14,6 +19,7 @@ export async function POST(req: Request) {
       model: createAiSdkModel(),
       system: await buildSystemPrompt("web"),
       messages: await convertToModelMessages(messages),
+      stopWhen: stepCountIs(3),
       tools: {
         createArtifact: {
           description:

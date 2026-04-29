@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Bot,
   FileCode2,
@@ -58,11 +58,7 @@ export function Dashboard() {
   const [telegramText, setTelegramText] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
   const [notice, setNotice] = useState("");
-
-  const webhookUrl = useMemo(() => {
-    if (typeof window === "undefined") return "/api/telegram/webhook";
-    return `${window.location.origin}/api/telegram/webhook`;
-  }, []);
+  const [webhookUrl, setWebhookUrl] = useState("/api/telegram/webhook");
 
   async function refresh() {
     const [artifacts, skills, knowledge, telegram] = await Promise.all([
@@ -81,6 +77,7 @@ export function Dashboard() {
 
   useEffect(() => {
     const load = async () => {
+      setWebhookUrl(`${window.location.origin}/api/telegram/webhook`);
       await refresh();
     };
     void load();
