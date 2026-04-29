@@ -1,11 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+export const DATA_DIR = path.join(process.cwd(), ".data");
 
 export type StoreName =
   | "artifacts"
   | "knowledge"
+  | "native-skills"
   | "settings"
   | "skills"
   | "telegram-messages";

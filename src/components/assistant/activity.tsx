@@ -3,15 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
+  Circle,
+  CircleDot,
   FileCode2,
   Loader2,
   Sparkles,
   Timer,
 } from "lucide-react";
-import type { ToolCallMessagePartProps } from "@assistant-ui/react";
+import type {
+  DataMessagePartProps,
+  ToolCallMessagePartProps,
+} from "@assistant-ui/react";
 import { useThread } from "@assistant-ui/react";
 import { Button } from "@/components/ui/button";
 import { useArtifactPreview } from "@/components/artifact-preview";
+import { cn } from "@/lib/utils";
 
 type CreateArtifactArgs = {
   title?: string;
@@ -24,6 +30,17 @@ type CreateArtifactResult = {
   title?: string;
   type?: string;
   viewUrl?: string;
+};
+
+type DeepAgentTodo = {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+};
+
+type DeepAgentTodosData = {
+  title?: string;
+  todos?: DeepAgentTodo[];
+  source?: "write_todos" | "agent_state";
 };
 
 export function AgentActivity() {
@@ -56,8 +73,15 @@ export function AgentActivity() {
     .reduce((total, part) => total + part.text.length, 0);
   const toolParts =
     latestAssistant?.content.filter((part) => part.type === "tool-call") ?? [];
+  const todoPart = latestAssistant?.content.find(
+    (part) => part.type === "data" && part.name === "todos",
+  );
+  const todoCount =
+    todoPart && "data" in todoPart
+      ? ((todoPart.data as DeepAgentTodosData | undefined)?.todos?.length ?? 0)
+      : 0;
 
-  if (!isRunning && !toolParts.length) return null;
+  if (!isRunning && !toolParts.length && !todoCount) return null;
 
   return (
     <div className="mx-4 mb-3 rounded-2xl border border-sky-100 bg-sky-50/90 px-4 py-3 text-xs text-slate-700 shadow-sm sm:mx-6">
@@ -79,15 +103,22 @@ export function AgentActivity() {
             Đang stream {textLength} ký tự
           </span>
         ) : null}
+        {todoCount ? (
+          <span className="rounded-full bg-white px-2 py-1">
+            {todoCount} todo DeepAgents
+          </span>
+        ) : null}
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <ActivityStep active={isRunning} label="Nhận yêu cầu" />
         <ActivityStep
-          active={isRunning || toolParts.length > 0}
+          active={isRunning || toolParts.length > 0 || todoCount > 0}
           label={
-            toolParts.length
-              ? `Chạy ${toolParts.length} tool/artifact step`
-              : "Lập kế hoạch phản hồi"
+            todoCount
+              ? "Lập/cập nhật todos bằng write_todos"
+              : toolParts.length
+                ? `Chạy ${toolParts.length} tool/artifact step`
+                : "Lập kế hoạch phản hồi"
           }
         />
         <ActivityStep
@@ -97,6 +128,150 @@ export function AgentActivity() {
       </div>
     </div>
   );
+}
+
+export function DeepAgentTodos({
+  data,
+}: DataMessagePartProps<DeepAgentTodosData>) {
+  const todos: DeepAgentTodo[] = data.todos ?? [];
+  if (!todos.length) return null;
+
+  const completed = todos.filter((todo) => todo.status === "completed").length;
+  const inProgress = todos.filter(
+    (todo) => todo.status === "in_progress",
+  ).length;
+
+  return (
+    <div className="my-3 rounded-2xl border border-emerald-200 bg-white p-3 text-sm shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-slate-900">
+            {data.title ?? "DeepAgents plan"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Native write_todos · {completed}/{todos.length} hoàn thành
+            {inProgress ? ` · ${inProgress} đang làm` : ""}
+          </p>
+        </div>
+        <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+          {data.source === "agent_state" ? "state update" : "write_todos"}
+        </span>
+      </div>
+      <div className="mt-3 space-y-2">
+        {todos.map((todo, index) => (
+          <div
+            className="flex gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
+            key={`${todo.content}-${index}`}
+          >
+            <TodoStatusIcon status={todo.status} />
+            <div className="min-w-0 flex-1">
+              <p
+                className={cn(
+                  "leading-5 text-slate-800",
+                  todo.status === "completed" && "text-slate-500 line-through",
+                )}
+              >
+                {todo.content}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {todoStatusLabel(todo.status)}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function WriteTodosTool({
+  args,
+  argsText,
+  result,
+  status,
+}: ToolCallMessagePartProps<{ todos?: DeepAgentTodo[] }, unknown>) {
+  const todos =
+    args.todos ??
+    normalizeToolTodos(
+      (result as { update?: { todos?: unknown } } | undefined)?.update?.todos,
+    );
+  const isRunning = status.type === "running";
+
+  return (
+    <div className="my-3 rounded-2xl border border-emerald-200 bg-white p-3 text-sm shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="rounded-xl bg-emerald-100 p-2 text-emerald-700">
+          {isRunning ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-slate-900">
+            {isRunning
+              ? "DeepAgents đang cập nhật todos..."
+              : "DeepAgents đã cập nhật todos"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Native tool: write_todos · {todos.length || "đang stream"} items
+          </p>
+        </div>
+      </div>
+      {todos.length ? (
+        <div className="mt-3 space-y-2">
+          {todos.map((todo, index) => (
+            <div className="flex gap-2 text-sm" key={`${todo.content}-${index}`}>
+              <TodoStatusIcon status={todo.status} />
+              <span>{todo.content}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-3 font-mono text-xs leading-5 text-slate-50">
+          {argsText || "Đang nhận todo update..."}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function TodoStatusIcon({ status }: { status: DeepAgentTodo["status"] }) {
+  if (status === "completed") {
+    return <CheckCircle2 className="mt-0.5 h-4 w-4 flex-none text-emerald-600" />;
+  }
+  if (status === "in_progress") {
+    return <CircleDot className="mt-0.5 h-4 w-4 flex-none animate-pulse text-sky-600" />;
+  }
+  return <Circle className="mt-0.5 h-4 w-4 flex-none text-slate-400" />;
+}
+
+function todoStatusLabel(status: DeepAgentTodo["status"]) {
+  if (status === "completed") return "Hoàn thành";
+  if (status === "in_progress") return "Đang thực hiện";
+  return "Chờ xử lý";
+}
+
+function normalizeToolTodos(value: unknown): DeepAgentTodo[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((todo) => {
+      if (!todo || typeof todo !== "object") return null;
+      const record = todo as Record<string, unknown>;
+      if (typeof record.content !== "string") return null;
+      if (
+        record.status !== "pending" &&
+        record.status !== "in_progress" &&
+        record.status !== "completed"
+      ) {
+        return null;
+      }
+      return {
+        content: record.content,
+        status: record.status,
+      };
+    })
+    .filter((todo): todo is DeepAgentTodo => Boolean(todo));
 }
 
 function ActivityStep({ active, label }: { active: boolean; label: string }) {

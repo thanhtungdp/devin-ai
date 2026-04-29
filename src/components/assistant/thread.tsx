@@ -9,7 +9,12 @@ import {
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import { ArrowDown, Copy, RefreshCcw, SendHorizontal } from "lucide-react";
 import type { ComponentProps } from "react";
-import { AgentActivity, CreateArtifactTool } from "./activity";
+import {
+  AgentActivity,
+  CreateArtifactTool,
+  DeepAgentTodos,
+  WriteTodosTool,
+} from "./activity";
 import { Button } from "@/components/ui/button";
 import { useArtifactPreview } from "@/components/artifact-preview";
 import { cn } from "@/lib/utils";
@@ -117,6 +122,12 @@ function AssistantMessage() {
               tools: {
                 by_name: {
                   createArtifact: CreateArtifactTool,
+                  write_todos: WriteTodosTool,
+                },
+              },
+              data: {
+                by_name: {
+                  todos: DeepAgentTodos,
                 },
               },
             }}

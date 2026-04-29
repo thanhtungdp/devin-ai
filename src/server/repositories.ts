@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { readStore, writeStore } from "./storage";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { DATA_DIR, readStore, writeStore } from "./storage";
 import type {
   Artifact,
   ArtifactType,
@@ -73,6 +75,7 @@ export async function createSkill(input: {
     createdAt: new Date().toISOString(),
   };
   await writeStore("skills", [skill, ...skills]);
+  await writeNativeSkill(skill);
   return skill;
 }
 
@@ -85,7 +88,11 @@ export async function updateSkill(
     skill.id === id ? { ...skill, ...input } : skill,
   );
   await writeStore("skills", next);
-  return next.find((skill) => skill.id === id);
+  const skill = next.find((item) => item.id === id);
+  if (skill) {
+    await writeNativeSkill(skill);
+  }
+  return skill;
 }
 
 export async function getTelegramSettings() {
@@ -127,4 +134,34 @@ function artifactMimeType(type: ArtifactType) {
     case "text":
       return "text/plain";
   }
+}
+
+async function writeNativeSkill(skill: Skill) {
+  const skillDir = path.join(DATA_DIR, "deepagents", "skills", skillSlug(skill));
+  if (!skill.enabled) {
+    await rm(skillDir, { force: true, recursive: true });
+    return;
+  }
+  await mkdir(skillDir, { recursive: true });
+  await writeFile(path.join(skillDir, "SKILL.md"), skillMarkdown(skill), "utf8");
+}
+
+function skillSlug(skill: Skill) {
+  const slug = skill.name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `${slug || "skill"}-${skill.id.slice(0, 8)}`;
+}
+
+function skillMarkdown(skill: Skill) {
+  return `---\nname: ${yamlString(skill.name)}\ndescription: ${yamlString(
+    skill.description,
+  )}\n---\n\n# ${skill.name}\n\n${skill.instructions}\n`;
+}
+
+function yamlString(value: string) {
+  return JSON.stringify(value);
 }

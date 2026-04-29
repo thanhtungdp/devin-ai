@@ -5,6 +5,13 @@ import {
 } from "@/server/repositories";
 import { invokePersonalAssistant } from "@/server/agent/deep-agent";
 
+type TodoStatus = "pending" | "in_progress" | "completed";
+
+type Todo = {
+  content: string;
+  status: TodoStatus;
+};
+
 export async function POST(req: Request) {
   const settings = await getTelegramSettings();
   const secret = req.headers.get("x-telegram-bot-api-secret-token");
@@ -42,9 +49,10 @@ export async function POST(req: Request) {
   const stopTyping = keepTyping(bot, chatId);
   let answer: string;
   try {
-    answer = await invokePersonalAssistant("telegram", [
+    const response = await invokePersonalAssistant("telegram", [
       { role: "user", content: text },
     ]);
+    answer = formatTelegramAnswer(response.answer, response.todos);
   } finally {
     stopTyping();
   }
@@ -57,6 +65,20 @@ export async function POST(req: Request) {
   });
 
   return Response.json({ ok: true });
+}
+
+function formatTelegramAnswer(answer: string, todos: Todo[]) {
+  if (!todos.length) return answer;
+  const todoText = todos
+    .map((todo) => `${todoIcon(todo.status)} ${todo.content}`)
+    .join("\n");
+  return `*Kế hoạch DeepAgents:*\n${todoText}\n\n${answer}`;
+}
+
+function todoIcon(status: TodoStatus) {
+  if (status === "completed") return "☑";
+  if (status === "in_progress") return "▶";
+  return "☐";
 }
 
 async function reactToMessage(
