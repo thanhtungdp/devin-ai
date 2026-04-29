@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useArtifactPreview } from "@/components/artifact-preview";
 import type {
   Artifact,
   KnowledgeItem,
@@ -44,6 +45,7 @@ const emptyData: DashboardData = {
 };
 
 export function Dashboard() {
+  const { openArtifact } = useArtifactPreview();
   const [data, setData] = useState<DashboardData>(emptyData);
   const [skillName, setSkillName] = useState("");
   const [skillDescription, setSkillDescription] = useState("");
@@ -343,16 +345,15 @@ export function Dashboard() {
           </Button>
           <div className="space-y-2">
             {data.artifacts.map((artifact) => (
-              <a
-                className="block rounded-xl border border-slate-200 p-3 text-sm hover:bg-slate-50"
-                href={`/api/artifacts?id=${artifact.id}&raw=1`}
+              <button
+                className="block w-full rounded-xl border border-slate-200 p-3 text-left text-sm hover:bg-slate-50"
                 key={artifact.id}
-                rel="noreferrer"
-                target="_blank"
+                onClick={() => void openArtifact(artifact.id)}
+                type="button"
               >
                 <div className="font-medium">{artifact.title}</div>
                 <div className="text-xs text-slate-500">{artifact.type}</div>
-              </a>
+              </button>
             ))}
           </div>
         </CardContent>

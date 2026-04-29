@@ -8,7 +8,10 @@ import {
 } from "@assistant-ui/react";
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import { ArrowDown, Copy, RefreshCcw, SendHorizontal } from "lucide-react";
+import type { ComponentProps } from "react";
+import { AgentActivity, CreateArtifactTool } from "./activity";
 import { Button } from "@/components/ui/button";
+import { useArtifactPreview } from "@/components/artifact-preview";
 import { cn } from "@/lib/utils";
 
 export function Thread() {
@@ -56,6 +59,7 @@ export function Thread() {
         </ThreadPrimitive.Messages>
 
         <ThreadPrimitive.ViewportFooter className="sticky bottom-0 bg-gradient-to-t from-white via-white pb-4 pt-8">
+          <AgentActivity />
           <ThreadPrimitive.ScrollToBottom asChild>
             <Button
               className="absolute -top-1 left-1/2 -translate-x-1/2 rounded-full shadow"
@@ -110,6 +114,11 @@ function AssistantMessage() {
           <MessagePrimitive.Parts
             components={{
               Text: AssistantMarkdown,
+              tools: {
+                by_name: {
+                  createArtifact: CreateArtifactTool,
+                },
+              },
             }}
           />
         </div>
@@ -143,6 +152,47 @@ function AssistantMarkdown() {
         "prose-pre:rounded-2xl prose-pre:bg-slate-950 prose-pre:p-4 prose-pre:text-slate-50",
         "prose-code:rounded prose-code:bg-slate-200 prose-code:px-1 prose-code:py-0.5 prose-code:text-slate-900 prose-code:before:content-none prose-code:after:content-none",
       )}
+      components={{
+        a: ArtifactLink,
+      }}
     />
   );
+}
+
+function ArtifactLink({
+  children,
+  href,
+  ...props
+}: ComponentProps<"a">) {
+  const { openArtifact } = useArtifactPreview();
+  const artifactId = getArtifactId(href);
+
+  if (!artifactId) {
+    return (
+      <a href={href} rel="noreferrer" target="_blank" {...props}>
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      className="font-medium text-sky-700 underline underline-offset-2 hover:text-sky-900"
+      onClick={() => void openArtifact(artifactId)}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
+
+function getArtifactId(href: string | undefined) {
+  if (!href) return null;
+  try {
+    const url = new URL(href, window.location.origin);
+    if (url.pathname !== "/api/artifacts") return null;
+    return url.searchParams.get("id");
+  } catch {
+    return null;
+  }
 }
