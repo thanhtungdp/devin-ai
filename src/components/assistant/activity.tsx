@@ -116,6 +116,7 @@ function ActivityStep({ active, label }: { active: boolean; label: string }) {
 
 export function CreateArtifactTool({
   args,
+  argsText,
   result,
   status,
 }: ToolCallMessagePartProps<CreateArtifactArgs, CreateArtifactResult>) {
@@ -123,6 +124,12 @@ export function CreateArtifactTool({
   const artifactId = result?.id;
   const title = result?.title ?? args.title ?? "Artifact";
   const type = result?.type ?? args.type ?? "artifact";
+  const streamedContent = args.content ?? extractContent(argsText);
+  const detailRows = [
+    ["Title", result?.title ?? args.title],
+    ["Type", result?.type ?? args.type],
+    ["Status", status.type],
+  ].filter((row): row is [string, string] => Boolean(row[1]));
   const isRunning = status.type === "running";
 
   return (
@@ -153,6 +160,30 @@ export function CreateArtifactTool({
           </Button>
         ) : null}
       </div>
+      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          {detailRows.map(([label, value]) => (
+            <span className="rounded-full bg-white px-2 py-1" key={label}>
+              {label}: <span className="font-medium text-slate-700">{value}</span>
+            </span>
+          ))}
+          {isRunning ? (
+            <span className="rounded-full bg-sky-100 px-2 py-1 font-medium text-sky-700">
+              Đang stream input
+            </span>
+          ) : null}
+        </div>
+        <pre className="max-h-52 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-3 font-mono text-xs leading-5 text-slate-50">
+          {streamedContent || argsText || "Đang chờ nội dung artifact..."}
+        </pre>
+      </div>
     </div>
   );
+}
+
+function extractContent(argsText: string) {
+  const marker = '"content"';
+  const markerIndex = argsText.indexOf(marker);
+  if (markerIndex === -1) return "";
+  return argsText.slice(markerIndex + marker.length).replace(/^:\s*"?/, "");
 }
