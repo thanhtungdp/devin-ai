@@ -20,10 +20,13 @@ export async function POST(req: Request) {
   const message = update.message;
   const text = message?.text;
   const chatId = message?.chat?.id;
+  const messageId = message?.message_id;
 
   if (!text || !chatId) {
     return Response.json({ ok: true });
   }
+
+  const bot = new Telegraf(settings.botToken);
 
   await appendTelegramMessage({
     chatId: String(chatId),
@@ -32,10 +35,20 @@ export async function POST(req: Request) {
     direction: "inbound",
   });
 
-  const answer = await invokePersonalAssistant("telegram", [
-    { role: "user", content: text },
-  ]);
-  const bot = new Telegraf(settings.botToken);
+  if (messageId) {
+    void reactToMessage(bot, chatId, messageId);
+  }
+
+  const stopTyping = keepTyping(bot, chatId);
+  let answer: string;
+  try {
+    answer = await invokePersonalAssistant("telegram", [
+      { role: "user", content: text },
+    ]);
+  } finally {
+    stopTyping();
+  }
+
   await bot.telegram.sendMessage(chatId, answer, { parse_mode: "Markdown" });
   await appendTelegramMessage({
     chatId: String(chatId),
@@ -44,4 +57,43 @@ export async function POST(req: Request) {
   });
 
   return Response.json({ ok: true });
+}
+
+async function reactToMessage(
+  bot: Telegraf,
+  chatId: number | string,
+  messageId: number,
+) {
+  try {
+    await bot.telegram.setMessageReaction(
+      chatId,
+      messageId,
+      [{ type: "emoji", emoji: "👀" }],
+      false,
+    );
+  } catch (error) {
+    console.warn("Unable to set Telegram reaction", error);
+  }
+}
+
+function keepTyping(bot: Telegraf, chatId: number | string) {
+  let stopped = false;
+  const sendTyping = async () => {
+    if (stopped) return;
+    try {
+      await bot.telegram.sendChatAction(chatId, "typing");
+    } catch (error) {
+      console.warn("Unable to send Telegram typing action", error);
+    }
+  };
+
+  void sendTyping();
+  const interval = setInterval(() => {
+    void sendTyping();
+  }, 4000);
+
+  return () => {
+    stopped = true;
+    clearInterval(interval);
+  };
 }
